@@ -1,0 +1,54 @@
+/* CodeMirror specific fixes */
+.cm-editor {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.cm-scroller {
+  height: 100% !important;
+  overflow: auto !important;
+}
+
+.cm-content {
+  min-height: 100% !important;
+  padding: 16px !important;
+}
+
+.cm-focused {
+  outline: none !important;
+}
+
+/* Dark theme overrides */
+.cm-editor.cm-focused .cm-cursor {
+  border-left-color: #ffffff !important;
+}
+
+.cm-editor .cm-activeLine {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.cm-editor .cm-selectionBackground {
+  background-color: rgba(0, 122, 204, 0.3) !important;
+}
+
+.cm-editor.cm-focused .cm-selectionBackground {
+  background-color: rgba(0, 122, 204, 0.4) !important;
+}
+
+/* Ensure proper text rendering */
+.cm-line {
+  padding: 0 !important;
+}
+
+.cm-gutters {
+  background-color: #1e1e1e !important;
+  border-right: 1px solid #3e3e42 !important;
+}
+
+.cm-lineNumbers .cm-gutterElement {
+  color: #858585 !important;
+  font-size: 12px !important;
+  padding: 0 8px !important;
+  min-width: 40px !important;
+  text-align: right !important;
+}
