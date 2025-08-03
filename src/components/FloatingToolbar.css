@@ -1,0 +1,531 @@
+/* Global Floating Toolbar Styles */
+.floating-toolbar-global {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(20px);
+  z-index: 9999;
+  opacity: 1;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Toolbar with header controls - different layout */
+.floating-toolbar-global--with-header {
+  border-radius: 16px;
+  padding: 12px 16px;
+  min-width: 300px;
+}
+
+.floating-toolbar-global--hovered {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+  transform: translateX(-50%) translateY(-2px);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .floating-toolbar-global {
+    background: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Header controls migrados desde EditorPanel */
+.floating-toolbar-global__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  margin-bottom: 8px;
+}
+
+.floating-toolbar-global__header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.floating-toolbar-global__header-right {
+  display: flex;
+  align-items: center;
+}
+
+.floating-toolbar-global__language-select {
+  padding: 4px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.floating-toolbar-global__language-select:hover {
+  border-color: rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.floating-toolbar-global__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.floating-toolbar-global__status-item {
+  font-size: 11px;
+  color: #6b7280;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.05);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.floating-toolbar-global__status-item--selection {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.1);
+}
+
+.floating-toolbar-global__status-item--focused {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.floating-toolbar-global__toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 12px;
+}
+
+.floating-toolbar-global__toggle:hover {
+  border-color: rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.floating-toolbar-global__toggle--active {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #2563eb;
+}
+
+.floating-toolbar-global__toggle-icon {
+  font-size: 14px;
+}
+
+.floating-toolbar-global__toggle-label {
+  font-weight: 500;
+}
+
+/* Dark mode para header controls */
+@media (prefers-color-scheme: dark) {
+  .floating-toolbar-global__header {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .floating-toolbar-global__language-select,
+  .floating-toolbar-global__toggle {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #e5e7eb;
+  }
+  
+  .floating-toolbar-global__language-select:hover,
+  .floating-toolbar-global__toggle:hover {
+    background: rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  
+  .floating-toolbar-global__status-item {
+    color: #9ca3af;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .floating-toolbar-global__toggle--active {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.4);
+    color: #60a5fa;
+  }
+}
+
+/* Global Toolbar Content */
+.floating-toolbar-global__content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Global Toolbar Items */
+.floating-toolbar-global__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  outline: none;
+  font-size: 16px;
+}
+
+.floating-toolbar-global__item:hover {
+  background: rgba(0, 0, 0, 0.08);
+  transform: scale(1.1);
+}
+
+.floating-toolbar-global__item:active {
+  transform: scale(0.95);
+}
+
+.floating-toolbar-global__item:focus-visible {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+.floating-toolbar-global__item--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.floating-toolbar-global__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* Dark mode for global toolbar items */
+@media (prefers-color-scheme: dark) {
+  .floating-toolbar-global__item {
+    color: #e5e7eb;
+  }
+  
+  .floating-toolbar-global__item:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Floating Toolbar Styles */
+.floating-toolbar {
+  position: absolute;
+  z-index: var(--z-popover);
+  background: var(--color-surface-elevated);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-1);
+  min-width: 12rem;
+  max-width: 25rem;
+  
+  /* Smooth transitions for all state changes */
+  transition: 
+    opacity var(--transition-base),
+    transform var(--transition-base),
+    box-shadow var(--transition-base);
+  
+  /* Initial state - subtle and discrete */
+  opacity: 0.85;
+  transform: translateY(0);
+}
+
+.floating-toolbar.inactive {
+  opacity: 0.7;
+}
+
+/* Positioning variants */
+.floating-toolbar--top-right {
+  top: var(--space-3);
+  right: var(--space-3);
+}
+
+.floating-toolbar--top-left {
+  top: var(--space-3);
+  left: var(--space-3);
+}
+
+.floating-toolbar--bottom-right {
+  bottom: var(--space-3);
+  right: var(--space-3);
+}
+
+.floating-toolbar--bottom-left {
+  bottom: var(--space-3);
+  left: var(--space-3);
+}
+
+/* Hover state - more prominent but not distracting */
+.floating-toolbar--hovered {
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-xl);
+}
+
+/* Dragging state */
+.floating-toolbar--dragging {
+  opacity: 0.95;
+  transform: scale(1.01);
+  box-shadow: var(--shadow-xl);
+}
+
+/* Toolbar content container */
+.floating-toolbar__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Tool groups */
+.floating-toolbar__group {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+
+.floating-toolbar__group:not(:last-child) {
+  border-bottom: 1px solid var(--color-border-tertiary);
+  margin-bottom: var(--space-1);
+  padding-bottom: var(--space-2);
+}
+
+/* Special styling for control group */
+.floating-toolbar__group--controls {
+  border-top: 1px solid var(--color-border-tertiary);
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-bottom: none;
+  margin-bottom: 0;
+  justify-content: flex-end;
+}
+
+/* Individual toolbar items */
+.floating-toolbar__item {
+  @extend .btn;
+  @extend .btn--ghost;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family-primary);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  min-height: 1.75rem;
+  transition: all var(--transition-fast);
+}
+
+/* Hover state for toolbar items - subtle feedback */
+.floating-toolbar__item:hover:not(:disabled) {
+  background-color: var(--color-surface-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Active/pressed state */
+.floating-toolbar__item:active:not(:disabled) {
+  transform: translateY(0);
+  background-color: var(--color-surface-active);
+  box-shadow: none;
+}
+
+/* Disabled state - discrete */
+.floating-toolbar__item--disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.floating-toolbar__item--disabled:hover {
+  background-color: transparent;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Control items (customize, close) */
+.floating-toolbar__item--control {
+  padding: var(--space-1) var(--space-2);
+  min-width: 1.5rem;
+  justify-content: center;
+}
+
+/* Icon styling */
+.floating-toolbar__icon {
+  font-size: var(--font-size-sm);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-4);
+  opacity: 0.8;
+}
+
+/* Label styling */
+.floating-toolbar__label {
+  font-weight: var(--font-weight-medium);
+  letter-spacing: -0.01em;
+}
+
+/* Shortcut key styling - discrete and informative */
+.floating-toolbar__shortcut {
+  font-size: var(--font-size-xs);
+  opacity: 0.6;
+  font-family: var(--font-family-mono);
+  background: var(--color-surface-tertiary);
+  color: var(--color-text-tertiary);
+  padding: 1px var(--space-1);
+  border-radius: var(--radius-sm);
+  margin-left: auto;
+  border: 1px solid var(--color-border-tertiary);
+}
+
+/* Focus styles for accessibility */
+.floating-toolbar__item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Responsive behavior */
+@media (max-width: 768px) {
+  .floating-toolbar {
+    min-width: 160px;
+    max-width: 280px;
+  }
+  
+  .floating-toolbar__label {
+    display: none;
+  }
+  
+  .floating-toolbar__shortcut {
+    display: none;
+  }
+  
+  .floating-toolbar__item {
+    padding: 8px;
+    justify-content: center;
+    min-width: 32px;
+  }
+  
+  .floating-toolbar__group {
+    flex-wrap: wrap;
+  }
+}
+
+/* Animation for show/hide */
+.floating-toolbar-enter {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.95);
+}
+
+.floating-toolbar-enter-active {
+  opacity: 0.8;
+  transform: translateY(0) scale(1);
+  transition: 
+    opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-toolbar-exit {
+  opacity: 0.8;
+  transform: translateY(0) scale(1);
+}
+
+.floating-toolbar-exit-active {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.95);
+  transition: 
+    opacity 0.15s cubic-bezier(0.4, 0, 1, 1),
+    transform 0.15s cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Drag and drop visual feedback */
+.floating-toolbar__item[draggable="true"] {
+  cursor: grab;
+}
+
+.floating-toolbar__item[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.floating-toolbar__item--dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+  cursor: grabbing;
+}
+
+.floating-toolbar__item--drag-over {
+  background-color: rgba(0, 123, 255, 0.1);
+  border: 1px dashed rgba(0, 123, 255, 0.3);
+  transform: scale(1.02);
+}
+
+/* Active customization state */
+.floating-toolbar__item--control.active {
+  background-color: rgba(0, 123, 255, 0.1);
+  color: #0066cc;
+}
+
+@media (prefers-color-scheme: dark) {
+  .floating-toolbar__item--control.active {
+    background-color: rgba(0, 123, 255, 0.2);
+    color: #66b3ff;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .floating-toolbar {
+    border: 2px solid;
+    background: Canvas;
+    color: CanvasText;
+  }
+  
+  .floating-toolbar__item:hover:not(:disabled) {
+    background: Highlight;
+    color: HighlightText;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .floating-toolbar,
+  .floating-toolbar__item,
+  .floating-toolbar-enter-active,
+  .floating-toolbar-exit-active {
+    transition: none;
+  }
+  
+  .floating-toolbar--hovered {
+    transform: none;
+  }
+  
+  .floating-toolbar__item:hover:not(:disabled) {
+    transform: none;
+  }
+}

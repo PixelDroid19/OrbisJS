@@ -1,7 +1,7 @@
 .tab-bar {
   display: flex;
   align-items: center;
-  background: #2d2d30;
+  /* background: #2d2d30; */
   border-bottom: 1px solid #3e3e42;
   padding: 0 8px;
   min-height: 40px;

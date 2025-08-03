@@ -7,14 +7,12 @@ import { WebContainerManager } from './WebContainerManager.js';
 import { FileSystemManager } from './FileSystemManager.js';
 import { ProcessManager } from './ProcessManager.js';
 import { BabelTransformer } from './BabelTransformer.js';
-import { PackageManager } from './PackageManager.js';
 import type { 
   ExecutionResult, 
   SupportedLanguage,
   LanguageConfig,
   RunnerConfig 
 } from './types.js';
-import type { PackageDetectionResult } from './PackageManager.js';
 
 /**
  * Language configurations
@@ -50,7 +48,6 @@ export class WebContainerRunner {
   private containerManager: WebContainerManager;
   private fileSystemManager: FileSystemManager | null = null;
   private processManager: ProcessManager | null = null;
-  private packageManager: PackageManager | null = null;
   private babelTransformer: BabelTransformer;
   private isInitialized = false;
   private config: RunnerConfig;
@@ -66,13 +63,6 @@ export class WebContainerRunner {
 
     this.containerManager = WebContainerManager.getInstance();
     this.babelTransformer = BabelTransformer.getInstance();
-    this.packageManager = new PackageManager({
-      autoInstall: config.autoInstallPackages || false,
-      autoDetect: true,
-      timeout: config.timeout || 30000,
-      maxConcurrentInstalls: 3,
-      securityScan: true
-    });
   }
 
   /**
@@ -90,12 +80,9 @@ export class WebContainerRunner {
       // Initialize managers
       this.fileSystemManager = new FileSystemManager(container);
       this.processManager = new ProcessManager(container, this.config);
-      
-      // Initialize PackageManager
-      await this.packageManager!.initialize(container);
 
-      // Initialize Babel with WebContainer and PackageManager references
-      await this.babelTransformer.initialize(container, this.packageManager!);
+      // Initialize Babel
+      await this.babelTransformer.initialize();
 
       this.isInitialized = true;
     } catch (error) {
@@ -109,8 +96,7 @@ export class WebContainerRunner {
   public isReady(): boolean {
     return this.isInitialized && 
            this.fileSystemManager !== null && 
-           this.processManager !== null &&
-           this.packageManager !== null;
+           this.processManager !== null;
   }
 
   /**
@@ -135,53 +121,50 @@ export class WebContainerRunner {
       
       if (options.transform !== false && language === 'javascript') {
         try {
-          processedCode = await this.babelTransformer.transformCode(code);
+          processedCode = this.babelTransformer.transformCode(code);
         } catch (transformError) {
           console.warn('⚠️ Error en transformación Babel, usando código original:', transformError);
           processedCode = code;
         }
       } else if (language === 'typescript') {
         try {
-          processedCode = await this.babelTransformer.transformTypeScript(code);
+          processedCode = this.babelTransformer.transformTypeScript(code);
         } catch (transformError) {
           console.warn('⚠️ Error en transformación TypeScript, usando código original:', transformError);
           processedCode = code;
         }
       }
 
-      // Detect dependencies first
-      console.log('🔍 Detectando dependencias...');
-      let detectedDependencies: Record<string, string> = {};
-      try {
-        const detection = await this.packageManager!.detectDependencies(code, filename);
-        
-        // Convert detected packages to dependencies object with latest versions
-        for (const packageName of detection.missing) {
-          detectedDependencies[packageName] = 'latest';
-        }
-        
-        console.log(`📦 Dependencias detectadas: ${Object.keys(detectedDependencies).join(', ')}`);
-      } catch (detectionError) {
-        console.warn('⚠️ Error en detección de dependencias:', detectionError);
-      }
-
-      // Create project structure without dependencies (clean WebContainer)
+      // Create project structure
       const projectTree = this.fileSystemManager!.getSimpleProjectTree(
         'user-project',
         filename,
         processedCode,
         language === 'javascript'
-        // No dependencies passed - WebContainer starts clean
       );
 
       // Mount files
       console.log('📁 Montando archivos...');
       await this.fileSystemManager!.mountFiles(projectTree);
 
-      // Report detected dependencies but don't install automatically
-      if (Object.keys(detectedDependencies).length > 0) {
-        console.log(`📦 Dependencias detectadas (no instaladas automáticamente): ${Object.keys(detectedDependencies).join(', ')}`);
-        console.log('ℹ️ Use installPackage() para instalar dependencias manualmente si es necesario');
+      // Install dependencies if needed (but don't wait too long)
+      if (this.hasDependencies(code)) {
+        console.log('📦 Instalando dependencias...');
+        try {
+          const installResult = await Promise.race([
+            this.installDependencies(code),
+            new Promise<ExecutionResult>((_, reject) => 
+              setTimeout(() => reject(new Error('Dependency installation timeout')), 15000)
+            )
+          ]);
+          
+          if (!installResult.success) {
+            console.warn('⚠️ Instalación de dependencias falló, continuando sin ellas');
+          }
+        } catch (installError) {
+          console.warn('⚠️ Error instalando dependencias:', installError);
+          // Continue without dependencies
+        }
       }
 
       // Execute based on language
@@ -215,13 +198,11 @@ export class WebContainerRunner {
 
     } catch (error) {
       console.error('❌ Error en ejecución:', error);
-      const duration = Date.now() - startTime;
-      
       return {
         success: false,
         output: '',
         error: error instanceof Error ? error.message : 'Unknown execution error',
-        duration,
+        duration: 0,
         timestamp: new Date()
       };
     }
@@ -239,74 +220,6 @@ export class WebContainerRunner {
   }
 
   /**
-   * Install a specific package
-   */
-  public async installPackage(packageName: string, options?: { dev?: boolean; exact?: boolean; version?: string }): Promise<boolean> {
-    if (!this.isReady()) {
-      throw new Error('Runner not initialized. Call initialize() first.');
-    }
-
-    console.log(`🚀 WebContainerRunner: Instalando ${packageName}`);
-    const result = await this.packageManager!.installPackage(packageName, options);
-    console.log(`✅ WebContainerRunner: ${packageName} instalado`);
-    return result;
-  }
-
-  /**
-   * Remove a package
-   */
-  public async removePackage(packageName: string): Promise<boolean> {
-    if (!this.isReady()) {
-      throw new Error('Runner not initialized. Call initialize() first.');
-    }
-
-    console.log(`🗑️ WebContainerRunner: Desinstalando ${packageName}`);
-    const result = await this.packageManager!.removePackage(packageName);
-    console.log(`✅ WebContainerRunner: ${packageName} desinstalado`);
-    return result;
-  }
-
-  /**
-   * Get installed packages
-   */
-  public getInstalledPackages() {
-    if (!this.isReady()) {
-      return [];
-    }
-
-    return this.packageManager!.getInstalledPackages();
-  }
-
-  /**
-   * Get PackageManager instance for editor integration
-   */
-  public getPackageManager(): PackageManager | null {
-    return this.packageManager;
-  }
-
-  /**
-   * Detect dependencies in code
-   */
-  public async detectDependencies(code: string, filePath?: string): Promise<PackageDetectionResult> {
-    if (!this.isReady()) {
-      throw new Error('Runner not initialized. Call initialize() first.');
-    }
-
-    return this.packageManager!.detectDependencies(code, filePath);
-  }
-
-  /**
-   * Auto-install missing dependencies
-   */
-  public async autoInstallMissing(code: string, filePath?: string): Promise<string[]> {
-    if (!this.isReady()) {
-      throw new Error('Runner not initialized. Call initialize() first.');
-    }
-
-    return this.packageManager!.autoInstallMissing(code, filePath);
-  }
-
-  /**
    * Install dependencies from package.json
    */
   public async installDependencies(code?: string): Promise<ExecutionResult> {
@@ -314,25 +227,14 @@ export class WebContainerRunner {
       throw new Error('Runner not initialized. Call initialize() first.');
     }
 
-    // Use new package manager for dependency detection and installation
+    // Create package.json if dependencies detected
     if (code) {
-      try {
-        const installed = await this.autoInstallMissing(code);
-        return {
-          success: true,
-          output: `Installed ${installed.length} packages: ${installed.join(', ')}`,
-          error: '',
-          duration: 0,
-          timestamp: new Date()
-        };
-      } catch (error) {
-        return {
-          success: false,
-          output: '',
-          error: error instanceof Error ? error.message : 'Unknown error',
-          duration: 0,
-          timestamp: new Date()
-        };
+      const deps = this.extractDependencies(code);
+      if (deps.length > 0) {
+        await this.fileSystemManager!.createPackageJson({
+          name: 'user-project',
+          dependencies: deps.reduce((acc, dep) => ({ ...acc, [dep]: 'latest' }), {})
+        });
       }
     }
 
@@ -340,8 +242,7 @@ export class WebContainerRunner {
   }
 
   /**
-   * Check if code has dependencies (deprecated - use PackageManager.detectDependencies)
-   * @deprecated Use detectDependencies() instead
+   * Check if code has dependencies
    */
   private hasDependencies(code: string): boolean {
     const importPatterns = [
@@ -354,8 +255,7 @@ export class WebContainerRunner {
   }
 
   /**
-   * Extract dependencies from code (deprecated - use PackageManager.detectDependencies)
-   * @deprecated Use detectDependencies() instead
+   * Extract dependencies from code
    */
   private extractDependencies(code: string): string[] {
     const deps: string[] = [];
@@ -444,33 +344,10 @@ export class WebContainerRunner {
    * Cleanup resources
    */
   public async cleanup(): Promise<void> {
-    if (this.packageManager) {
-      await this.packageManager.destroy();
-      this.packageManager = null;
-    }
-    
     await this.containerManager.forceCleanup();
     this.isInitialized = false;
     this.fileSystemManager = null;
     this.processManager = null;
-  }
-
-  /**
-   * Stop current execution
-   */
-  public async stopExecution(): Promise<void> {
-    if (!this.isReady()) {
-      return;
-    }
-
-    try {
-      if (this.processManager) {
-        await this.processManager.killCurrentProcess();
-        console.log('🛑 Execution stopped');
-      }
-    } catch (error) {
-      console.warn('Error stopping execution:', error);
-    }
   }
 
   /**
@@ -479,16 +356,5 @@ export class WebContainerRunner {
   public async reset(): Promise<void> {
     await this.cleanup();
     await this.initialize();
-  }
-
-  /**
-   * Refresh package list from package.json
-   */
-  public async refreshPackages(): Promise<void> {
-    if (!this.isReady()) {
-      throw new Error('Runner not initialized. Call initialize() first.');
-    }
-
-    await this.packageManager!.refreshPackages();
   }
 }

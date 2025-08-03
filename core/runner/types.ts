@@ -61,7 +61,6 @@ export interface RunnerConfig {
   maxOutputSize?: number;
   workingDirectory?: string;
   enableStderr?: boolean;
-  autoInstallPackages?: boolean;
 }
 
 // File system entry
@@ -98,4 +97,11 @@ export interface SingletonState {
   bootPromise: Promise<WebContainerInstance> | null;
   bootCount: number;
   lastBootTime: number;
+}
+
+// Babel configuration
+export interface BabelConfig {
+  presets?: string[];
+  plugins?: string[];
+  filename?: string;
 }

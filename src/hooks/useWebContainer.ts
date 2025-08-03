@@ -20,7 +20,7 @@ export function useWebContainer(): UseWebContainerReturn {
 
   const checkForExistingWebContainer = useCallback(() => {
     if (typeof window !== 'undefined') {
-      const singleton = (window as { __ORBIS_WC_SINGLETON__?: { instance: unknown } }).__ORBIS_WC_SINGLETON__;
+      const singleton = (window as any).__ORBIS_WC_SINGLETON__;
       if (singleton?.instance) {
         console.log('⚠️ Detected existing WebContainer instance');
         return true;
@@ -80,16 +80,6 @@ export function useWebContainer(): UseWebContainerReturn {
       setRunner(newRunner);
       setIsInitializing(false);
       console.log('✅ WebContainer Runner initialized successfully');
-      
-      // Cargar paquetes instalados después de la inicialización exitosa
-      setTimeout(async () => {
-        try {
-          const packages = newRunner.getInstalledPackages();
-          console.log(`📦 Cargados ${packages.length} paquetes instalados después de la inicialización`);
-        } catch (err) {
-          console.error('Error cargando paquetes instalados después de la inicialización:', err);
-        }
-      }, 1000);
       
     } catch (err) {
       if (!isMounted.current) return;
@@ -159,16 +149,6 @@ export function useWebContainer(): UseWebContainerReturn {
       setInitError('');
       initializationAttempted.current = true; // Mark as successful
       console.log('✅ WebContainer retry successful!');
-      
-      // Cargar paquetes instalados después del retry exitoso
-      setTimeout(async () => {
-        try {
-          const packages = newRunner.getInstalledPackages();
-          console.log(`📦 Cargados ${packages.length} paquetes instalados después del retry`);
-        } catch (err) {
-          console.error('Error cargando paquetes instalados después del retry:', err);
-        }
-      }, 1000);
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);

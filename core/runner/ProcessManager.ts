@@ -122,14 +122,9 @@ export class ProcessManager {
   private async collectOutput(process: WebContainerProcess): Promise<void> {
     const promises: Promise<void>[] = [];
 
-    // Collect stdout
+    // Collect combined output (stdout + stderr)
     if (process.output) {
       promises.push(this.readStream(process.output, 'stdout'));
-    }
-
-    // Collect stderr por separado si está habilitado y disponible
-    if (this.config.enableStderr && (process as any).stderr) {
-      promises.push(this.readStream((process as any).stderr as ReadableStream<string>, 'stderr'));
     }
 
     // Wait for all streams to complete or timeout
@@ -148,14 +143,14 @@ export class ProcessManager {
     
     try {
       let consecutiveEmptyReads = 0;
-      const maxEmptyReads = 20; // Permitir más iteraciones antes de abortar
+      const maxEmptyReads = 10; // Prevent infinite loops
       
       while (consecutiveEmptyReads < maxEmptyReads) {
         try {
           const { done, value } = await Promise.race([
             reader.read(),
             new Promise<{ done: true; value: undefined }>((_, reject) => 
-              setTimeout(() => reject(new Error('Stream read timeout')), 15000)
+              setTimeout(() => reject(new Error('Stream read timeout')), 5000)
             )
           ]);
           
@@ -185,8 +180,7 @@ export class ProcessManager {
           
         } catch (readError) {
           if (readError instanceof Error && readError.message.includes('timeout')) {
-            // Si ocurre un timeout, dejamos el bucle pero sin considerarlo crítico
-            console.warn(`Stream read timeout for ${type}. Continuando lectura...`);
+            console.warn(`Stream read timeout for ${type}`);
             break;
           }
           throw readError;
@@ -204,14 +198,8 @@ export class ProcessManager {
   /**
    * Add output to buffer
    */
-  private stripAnsiCodes(text: string): string {
-    return text.replace(/\u001B\[[0-9;]*[mK]/g, '');
-  }
-
   private addOutput(type: 'stdout' | 'stderr', content: string): void {
-    // Elimina códigos ANSI para mostrar salida limpia
-    const cleanContent = this.stripAnsiCodes(content);
-    const lines = cleanContent.split('\n');
+    const lines = content.split('\n');
     
     for (const line of lines) {
       if (line.trim()) {
@@ -285,7 +273,7 @@ export class ProcessManager {
   /**
    * Kill current process
    */
-  public async killCurrentProcess(): Promise<void> {
+  private async killCurrentProcess(): Promise<void> {
     if (this.currentProcess) {
       try {
         this.currentProcess.kill();

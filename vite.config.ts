@@ -34,17 +34,5 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['@webcontainer/api'],
-    include: ['events', 'buffer', 'process', 'util'],
-  },
-  define: {
-    global: 'globalThis',
-  },
-  resolve: {
-    alias: {
-      events: 'events',
-      buffer: 'buffer',
-      process: 'process/browser',
-      util: 'util',
-    },
   },
 })

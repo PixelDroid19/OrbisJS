@@ -1,0 +1,113 @@
+.split-view {
+  display: grid;
+  grid-template-columns: calc(var(--split-ratio) * 100%) var(--space-1) 1fr;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  container-type: inline-size;
+  container-name: split-view;
+}
+
+.split-panel {
+  overflow: hidden;
+  min-width: 0;
+  background: var(--color-surface-primary);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.split-panel-left {
+  grid-column: 1;
+  border-right: 1px solid var(--color-border-secondary);
+}
+
+.split-panel-right {
+  grid-column: 3;
+  border-left: 1px solid var(--color-border-secondary);
+}
+
+.split-resizer {
+  grid-column: 2;
+  background: var(--color-border-secondary);
+  cursor: col-resize;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  border-radius: var(--radius-sm);
+}
+
+.split-resizer:hover,
+.split-resizer:focus {
+  background: var(--color-border-interactive);
+  outline: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.split-resizer:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+
+.split-resizer-handle {
+  width: 2px;
+  height: 2.5rem;
+  background: var(--color-text-tertiary);
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: all var(--transition-fast);
+}
+
+.split-resizer:hover .split-resizer-handle,
+.split-resizer:focus .split-resizer-handle,
+.split-view.dragging .split-resizer-handle {
+  opacity: 0.8;
+  background: var(--color-accent-primary);
+}
+
+.split-view.dragging {
+  user-select: none;
+}
+
+.split-view.dragging .split-resizer {
+  background: var(--color-accent-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.split-view.dragging .split-resizer-handle {
+  opacity: 1;
+  background: var(--color-text-inverse);
+}
+
+/* Ensure panels maintain their layout */
+.split-panel-left,
+.split-panel-right {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Responsive adjustments */
+@container (max-width: 768px) {
+  .split-view {
+    grid-template-columns: calc(var(--split-ratio) * 100%) 2px 1fr;
+  }
+  
+  .split-resizer-handle {
+    height: 2rem;
+  }
+}
+
+@container (max-width: 480px) {
+  .split-panel {
+    border-radius: 0;
+  }
+  
+  .split-panel-left {
+    border-right: none;
+  }
+  
+  .split-panel-right {
+    border-left: none;
+  }
+}

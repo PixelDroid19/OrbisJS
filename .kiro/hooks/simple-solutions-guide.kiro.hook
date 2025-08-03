@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "name": "Simple Solutions Guide",
+  "description": "Reviews code changes to ensure solutions prioritize simplicity and functionality over complex or overly elaborate implementations, even if they are more technically elegant",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "core/**/*.ts",
+      "app/**/*.ts",
+      "electron/**/*.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the code changes and provide feedback focusing on simplicity and functionality. Prefer simple, functional solutions over complex or overly elaborate implementations, even if they are more technically elegant. Suggest simpler alternatives when you see unnecessarily complex code patterns, over-engineered solutions, or excessive abstractions that don't add clear value. Prioritize readability, maintainability, and straightforward implementation approaches."
+  }
+}

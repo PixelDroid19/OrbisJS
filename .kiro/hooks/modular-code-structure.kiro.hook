@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "name": "Modular Code Structure",
+  "description": "Monitors code files to ensure modular structure, prevent giant files, and identify duplicate logic that should be abstracted into utilities or hooks",
+  "version": "1",
+  "when": {
+    "type": "fileCreated",
+    "patterns": [
+      "src/**/*.tsx",
+      "src/**/*.ts",
+      "app/**/*.tsx",
+      "app/**/*.ts",
+      "core/**/*.tsx",
+      "core/**/*.ts",
+      "electron/**/*.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Analyze the modified files for code structure and modularity. Check for: 1) Files that are becoming too large (>300 lines) and suggest breaking them into smaller modules, 2) Duplicate code patterns that could be abstracted into reusable utilities or custom hooks, 3) Logic that could be extracted into separate utility functions or hooks for better reusability, 4) Components or functions that are doing too many things and should be split. Provide specific refactoring suggestions to improve modularity and scalability."
+  }
+}

@@ -13,9 +13,7 @@ import {
 import { LanguageDetectionService } from './LanguageDetectionService';
 import { BufferManager } from './BufferManager';
 import { CodeMirrorExtensions } from './CodeMirrorExtensions';
-import { CompletionService } from './CompletionService';
 import { DEFAULT_CONFIG } from './constants';
-import type { PackageManager } from '../runner/PackageManager.js';
 
 export interface EditorEngine {
   // Content management
@@ -54,10 +52,6 @@ export interface EditorEngine {
   updateConfig(config: Partial<EditorConfig>): void;
   setAutoDetectLanguage(enabled: boolean): void;
   getAutoDetectLanguage(): boolean;
-  
-  // Package management integration
-  setPackageManager(packageManager: PackageManager): void;
-  refreshPackageCompletions(): void;
 }
 
 export class CodeMirrorEditorEngine implements EditorEngine {
@@ -360,43 +354,6 @@ export class CodeMirrorEditorEngine implements EditorEngine {
       if (effects.length > 0) {
         this.view.dispatch({ effects });
       }
-    }
-  }
-
-  // Package management integration
-  setPackageManager(packageManager: PackageManager): void {
-    CompletionService.setPackageManager(packageManager);
-    
-    // Reconfigure completion extensions to include package completions
-    if (this.view) {
-      const buffer = this.getCurrentBuffer();
-      const language = buffer?.language || 'javascript';
-      const compartments = this.extensions.getCompartments();
-      
-      this.view.dispatch({
-        effects: [
-          compartments.completion.reconfigure(
-            this.extensions.getCompletionExtensions(language, this.config.autoComplete)
-          )
-        ]
-      });
-    }
-  }
-
-  refreshPackageCompletions(): void {
-    // Force refresh of completion extensions to pick up new packages
-    if (this.view) {
-      const buffer = this.getCurrentBuffer();
-      const language = buffer?.language || 'javascript';
-      const compartments = this.extensions.getCompartments();
-      
-      this.view.dispatch({
-        effects: [
-          compartments.completion.reconfigure(
-            this.extensions.getCompletionExtensions(language, this.config.autoComplete)
-          )
-        ]
-      });
     }
   }
 }

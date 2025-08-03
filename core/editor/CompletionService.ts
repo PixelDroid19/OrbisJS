@@ -12,18 +12,8 @@ import {
   snippets,
   typescriptSnippets,
 } from "@codemirror/lang-javascript";
-import type { PackageManager, PackageInfo } from "../runner/PackageManager.js";
 
 export class CompletionService {
-  private static packageManager: PackageManager | null = null;
-
-  /**
-   * Configura el PackageManager para autocompletado de paquetes
-   */
-  public static setPackageManager(packageManager: PackageManager): void {
-    CompletionService.packageManager = packageManager;
-  }
-
   /**
    * Obtiene las extensiones de autocompletado para JavaScript usando LRLanguage
    */
@@ -32,8 +22,6 @@ export class CompletionService {
       // Consolidar todas las fuentes de autocompletado en una sola extensión
       autocompletion({
         override: [
-          // Completaciones de paquetes instalados (prioridad más alta)
-          CompletionService.createPackageCompletionSource(),
           // Completaciones personalizadas (prioridad alta)
           CompletionService.createCustomCompletionSource(),
           // JSDoc completions integradas
@@ -58,8 +46,6 @@ export class CompletionService {
       // Consolidar todas las fuentes de autocompletado en una sola extensión
       autocompletion({
         override: [
-          // Completaciones de paquetes instalados (prioridad más alta)
-          CompletionService.createPackageCompletionSource(),
           // Completaciones personalizadas (prioridad alta)
           CompletionService.createCustomCompletionSource(),
           // Completaciones específicas de TypeScript
@@ -706,85 +692,6 @@ export class CompletionService {
         options: tagOptions,
         validFor: /^(@\w*)?$/,
       };
-    };
-  }
-
-  /**
-   * Fuente de completado para paquetes instalados
-   * @param {PackageInfo[]} packages - Lista de paquetes instalados
-   */
-  private static createPackageCompletionSource() {
-    return (context: CompletionContext): CompletionResult | null => {
-      if (!CompletionService.packageManager) {
-        return null;
-      }
-
-      const word = context.matchBefore(/\w*/);
-      if (!word || (word.from == word.to && !context.explicit)) {
-        return null;
-      }
-
-      // Detectar el contexto analizando el texto antes del cursor
-      const textBefore = context.state.sliceDoc(
-        Math.max(0, context.pos - 100),
-        context.pos
-      );
-
-      // Detectar si estamos en un import/require statement
-      const isInImport = /(?:import\s+.*?\s+from\s+['"`]|require\s*\(\s*['"`])\w*$/.test(textBefore);
-      const isInRequire = /require\s*\(\s*['"`]\w*$/.test(textBefore);
-
-      if (isInImport || isInRequire) {
-        // Obtener paquetes instalados
-        const installedPackages: PackageInfo[] = CompletionService.packageManager.getInstalledPackages();
-        
-        const packageCompletions: Completion[] = installedPackages.map((pkg: PackageInfo) => ({
-          label: pkg.name,
-          type: "module",
-          apply: pkg.name,
-          detail: `v${pkg.version} - ${pkg.type}`,
-          info: pkg.description || `Installed package: ${pkg.name}`,
-          boost: 10 // Dar prioridad a paquetes instalados
-        }));
-
-        // Agregar módulos built-in de Node.js
-        const builtinModules = [
-          'fs', 'path', 'http', 'https', 'url', 'crypto', 'os', 'util',
-          'events', 'stream', 'buffer', 'process', 'child_process',
-          'cluster', 'dgram', 'dns', 'net', 'readline', 'repl',
-          'string_decoder', 'timers', 'tls', 'tty', 'vm', 'zlib'
-        ];
-
-        const builtinCompletions: Completion[] = builtinModules.map(module => ({
-          label: module,
-          type: "module",
-          apply: module,
-          detail: "Node.js built-in",
-          info: `Built-in Node.js module: ${module}`,
-          boost: 5
-        }));
-
-        return {
-          from: word.from,
-          options: [...packageCompletions, ...builtinCompletions],
-          validFor: /^[\w@/-]*$/,
-        };
-      }
-
-      // Detectar si estamos después de un paquete importado (ej: lodash.)
-      const packageAccessMatch = textBefore.match(/\b([a-zA-Z_$@][\w@/-]*)\.\w*$/);
-      if (packageAccessMatch) {
-        const packageName = packageAccessMatch[1];
-        const packageInfo: PackageInfo | null = CompletionService.packageManager.getPackageInfo(packageName);
-        
-        if (packageInfo) {
-          // Retornar null para permitir que las completaciones por defecto funcionen
-          // El sistema de autocompletado de CodeMirror manejará el resto
-          return null;
-        }
-      }
-
-      return null;
     };
   }
 }

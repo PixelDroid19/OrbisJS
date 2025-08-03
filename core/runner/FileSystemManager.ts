@@ -119,7 +119,7 @@ export class FileSystemManager {
       scripts: config.scripts || {}
     };
 
-    await this.createFile('/package.json', JSON.stringify(packageJson, null, 2));
+    await this.createFile('package.json', JSON.stringify(packageJson, null, 2));
   }
 
   /**
@@ -148,8 +148,7 @@ export class FileSystemManager {
     name: string,
     mainFile: string,
     mainContent: string,
-    includeHtml: boolean = false,
-    dependencies: Record<string, string> = {}
+    includeHtml: boolean = false
   ): FileSystemTree {
     const tree: FileSystemTree = {
       'package.json': {
@@ -161,9 +160,7 @@ export class FileSystemManager {
             scripts: {
               start: 'node ' + mainFile,
               dev: 'node --watch ' + mainFile
-            },
-            dependencies: {}, // Always start with empty dependencies
-            devDependencies: {}
+            }
           }, null, 2)
         }
       },

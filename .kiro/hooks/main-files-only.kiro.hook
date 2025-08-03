@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "name": "Generate Main Files Only",
+  "description": "Generates only the main project files necessary for module functionality, avoiding test files and secondary components unless strictly essential",
+  "version": "1",
+  "when": {
+    "type": "fileCreated",
+    "patterns": [
+      "src/**/*.tsx",
+      "src/**/*.ts",
+      "core/**/*.ts",
+      "app/**/*.ts",
+      "electron/**/*.ts",
+      "package.json",
+      "tsconfig.json",
+      "vite.config.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Genera únicamente los archivos principales del proyecto necesarios para que funcione el módulo, evitando crear archivos de pruebas (tests) innecesarios o separados para cada componente, a menos que sean estrictamente imprescindibles. Concéntrate en la estructura de código principal y omite archivos secundarios como test unitarios individuales"
+  }
+}

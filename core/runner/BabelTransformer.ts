@@ -1,32 +1,55 @@
 /**
- * BabelTransformer - Handles JavaScript/TypeScript transformation using Babel
- * Uses WebContainer's package system instead of CDN loading
+ * BabelTransformer - JavaScript/TypeScript compilation using Babel standalone
  */
 
-import type { WebContainer } from '@webcontainer/api';
-import type { PackageManager } from './PackageManager.js';
+import type { BabelConfig } from './types.js';
 
-/**
- * Configuration for Babel transformation
- */
-export interface BabelConfig {
+// Babel interface definition
+interface BabelGlobal {
+  transform: (code: string, options: BabelTransformOptions) => { code?: string };
+  availablePresets: string[];
+  availablePlugins: string[];
+}
+
+// Extend global window interface for Babel
+declare global {
+  interface Window {
+    Babel?: BabelGlobal;
+  }
+}
+
+interface WindowWithBabel extends Window {
+  Babel?: BabelGlobal;
+}
+
+// Babel standalone will be loaded dynamically
+interface BabelTransformOptions {
   presets?: string[];
   plugins?: string[];
   filename?: string;
-  sourceType?: 'module' | 'script';
+  sourceMaps?: boolean;
   compact?: boolean;
-  comments?: boolean;
 }
+
+interface BabelTransformResult {
+  code: string;
+  map?: unknown;
+}
+
+interface BabelStandalone {
+  transform(code: string, options: BabelTransformOptions): BabelTransformResult;
+  availablePresets: string[];
+  availablePlugins: string[];
+}
+
+let babel: BabelStandalone | null = null;
 
 /**
  * Manager for Babel transformations
  */
 export class BabelTransformer {
   private static instance: BabelTransformer;
-  private webContainer: WebContainer | null = null;
-  private packageManager: PackageManager | null = null;
   private isInitialized = false;
-  private fallbackTransformer: ((code: string) => string) | null = null;
 
   private constructor() {}
 
@@ -41,114 +64,105 @@ export class BabelTransformer {
   }
 
   /**
-   * Initialize Babel transformer with WebContainer and PackageManager
+   * Initialize Babel standalone
    */
-  public async initialize(webContainer?: WebContainer, packageManager?: PackageManager): Promise<void> {
+  public async initialize(): Promise<void> {
     if (this.isInitialized) {
       return;
     }
 
-    // Store references for later use
-    if (webContainer) {
-      this.webContainer = webContainer;
-    }
-    if (packageManager) {
-      this.packageManager = packageManager;
-    }
-
-    // Initialize fallback transformer immediately
-    this.initializeFallback();
-    this.isInitialized = true;
-    console.log('✅ BabelTransformer initialized with fallback');
-  }
-
-  /**
-   * Check if Babel is already installed in WebContainer (without installing it)
-   */
-  private async isBabelInstalled(): Promise<boolean> {
-    if (!this.packageManager) {
-      return false;
-    }
-
     try {
-      const installedPackages = await this.packageManager.getInstalledPackages();
-      return installedPackages.some(pkg => pkg.name === '@babel/standalone');
-    } catch (error) {
-      console.warn('⚠️ Error checking installed packages:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Transform code using Babel in WebContainer (only if already installed)
-   */
-  private async transformWithBabel(code: string, config: BabelConfig): Promise<string> {
-    if (!this.webContainer) {
-      throw new Error('WebContainer not available');
-    }
-
-    // Check if Babel is already installed (don't install automatically)
-    const babelAvailable = await this.isBabelInstalled();
-    if (!babelAvailable) {
-      throw new Error('Babel not available - install @babel/standalone manually if needed');
-    }
-
-    // Create a temporary transformation script
-    const transformScript = `
-const babel = require('@babel/standalone');
-
-const code = ${JSON.stringify(code)};
-const options = ${JSON.stringify(config)};
-
-try {
-  const result = babel.transform(code, options);
-  console.log(JSON.stringify({ success: true, code: result.code }));
-} catch (error) {
-  console.log(JSON.stringify({ success: false, error: error.message }));
-}
-`;
-
-    try {
-      // Write the transformation script
-      await this.webContainer.fs.writeFile('/transform.js', transformScript);
-
-      // Execute the transformation
-      const process = await this.webContainer.spawn('node', ['/transform.js']);
+      console.log('🔄 Inicializando Babel transformer...');
       
-      let output = '';
-      process.output.pipeTo(new WritableStream({
-        write(data) {
-          output += data;
-        }
-      }));
-
-      const exitCode = await process.exit;
+      // Try to load Babel standalone with timeout
+      await this.loadBabelWithTimeout();
       
-      if (exitCode === 0) {
-        try {
-          const result = JSON.parse(output.trim());
-          if (result.success) {
-            return result.code;
-          } else {
-            throw new Error(result.error);
-          }
-        } catch (parseError) {
-          throw new Error('Failed to parse transformation result');
-        }
-      } else {
-        throw new Error(`Transformation process failed with exit code ${exitCode}`);
+      // @ts-expect-error - Babel is loaded globally
+      babel = window.Babel;
+      
+      if (!babel) {
+        throw new Error('Babel standalone not available after loading');
       }
-    } finally {
-      // Clean up the temporary file
+
+      // Verify Babel is working
       try {
-        await this.webContainer.fs.unlink('/transform.js');
-      } catch (cleanupError) {
-        // Ignore cleanup errors
+        const testResult = babel.transform('const x = 1;', { presets: ['env'] });
+        if (!testResult || !testResult.code) {
+          throw new Error('Babel transform test failed');
+        }
+      } catch (testError) {
+        console.warn('Babel test failed:', testError);
+        throw new Error('Babel functionality test failed');
       }
+
+      this.isInitialized = true;
+      console.log('✅ Babel transformer inicializado correctamente');
+      
+    } catch (error) {
+      console.error('❌ Error inicializando Babel:', error);
+      
+      // Try fallback: simple pass-through transformer
+      console.log('🔄 Usando transformador simple como fallback...');
+      this.initializeFallback();
     }
   }
 
+  /**
+   * Load Babel with timeout and retry logic
+   */
+  private async loadBabelWithTimeout(): Promise<void> {
+    const CDN_URLS = [
+      'https://unpkg.com/@babel/standalone/babel.min.js',
+      'https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.0/babel.min.js'
+    ];
 
+    for (const url of CDN_URLS) {
+      try {
+        console.log(`🔄 Intentando cargar Babel desde: ${url}`);
+        await this.loadScriptWithTimeout(url, 10000); // 10 second timeout
+        
+        // Check if Babel was loaded
+        if ((window as WindowWithBabel).Babel) {
+          console.log('✅ Babel cargado exitosamente desde CDN');
+          return;
+        }
+      } catch (error) {
+        console.warn(`❌ Falló carga desde ${url}:`, error);
+        continue;
+      }
+    }
+
+    throw new Error('Failed to load Babel from any CDN');
+  }
+
+  /**
+   * Load script with timeout
+   */
+  private async loadScriptWithTimeout(src: string, timeout: number): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      
+      const timeoutId = setTimeout(() => {
+        script.remove();
+        reject(new Error(`Script load timeout: ${src}`));
+      }, timeout);
+
+      script.onload = () => {
+        clearTimeout(timeoutId);
+        resolve();
+      };
+
+      script.onerror = () => {
+        clearTimeout(timeoutId);
+        script.remove();
+        reject(new Error(`Script load error: ${src}`));
+      };
+
+      document.head.appendChild(script);
+    });
+  }
 
   /**
    * Initialize fallback transformer (simple pass-through)
@@ -156,11 +170,31 @@ try {
   private initializeFallback(): void {
     console.log('🔄 Inicializando transformador fallback...');
     
-    this.fallbackTransformer = (code: string) => {
-      console.log('⚠️ Usando transformador simple (sin Babel)');
-      return code;
+    // Create a minimal Babel-like interface
+    babel = {
+      transform: (code: string, options: BabelTransformOptions) => {
+        console.log('⚠️ Usando transformador simple (sin Babel)');
+        
+        // Simple transformations for common cases
+        let transformedCode = code;
+        
+        // Basic TypeScript to JavaScript (remove type annotations)
+        if (options.presets?.includes('typescript')) {
+          transformedCode = this.simpleTypeScriptTransform(transformedCode);
+        }
+        
+        // Basic modern JS transformations
+        if (options.presets?.includes('env')) {
+          transformedCode = this.simpleModernJSTransform(transformedCode);
+        }
+        
+        return { code: transformedCode };
+      },
+      availablePresets: ['env', 'typescript', 'react'],
+      availablePlugins: []
     };
 
+    this.isInitialized = true;
     console.log('✅ Transformador fallback inicializado');
   }
 
@@ -196,71 +230,53 @@ try {
   /**
    * Transform JavaScript code
    */
-  public async transformJavaScript(code: string, config: Partial<BabelConfig> = {}): Promise<string> {
-    if (!this.isInitialized) {
+  public transformJavaScript(code: string, config: Partial<BabelConfig> = {}): string {
+    if (!this.isInitialized || !babel) {
       console.warn('⚠️ Babel no inicializado, devolviendo código sin transformar');
       return code;
     }
 
-    const babelConfig: BabelConfig = {
+    const options = {
       presets: config.presets || ['env'],
       plugins: config.plugins || [],
       filename: config.filename || 'script.js',
+      sourceMaps: false,
       compact: false
     };
 
-    // Only try Babel if it's already installed, don't install automatically
     try {
-      if (this.webContainer && this.packageManager) {
-        const babelAvailable = await this.isBabelInstalled();
-        if (babelAvailable) {
-          return await this.transformWithBabel(code, babelConfig);
-        } else {
-          console.log('ℹ️ @babel/standalone not installed. Install it manually if you need advanced transformations.');
-        }
-      }
+      const result = babel.transform(code, options);
+      return result.code || code;
     } catch (error) {
-      console.warn('⚠️ Error en transformación JavaScript con Babel:', error);
+      console.warn('⚠️ Error en transformación JavaScript, devolviendo código original:', error);
+      return code; // Return original code instead of throwing
     }
-
-    // Fallback to simple transformation
-    console.log('🔄 Usando transformación simple como fallback');
-    return this.simpleModernJSTransform(code);
   }
 
   /**
    * Transform TypeScript code to JavaScript
    */
-  public async transformTypeScript(code: string, config: Partial<BabelConfig> = {}): Promise<string> {
-    if (!this.isInitialized) {
+  public transformTypeScript(code: string, config: Partial<BabelConfig> = {}): string {
+    if (!this.isInitialized || !babel) {
       console.warn('⚠️ Babel no inicializado, usando transformación simple de TypeScript');
       return this.simpleTypeScriptTransform(code);
     }
 
-    const babelConfig: BabelConfig = {
+    const options = {
       presets: ['typescript', ...(config.presets || ['env'])],
       plugins: config.plugins || [],
       filename: config.filename || 'script.ts',
+      sourceMaps: false,
       compact: false
     };
 
-    // Only try Babel if it's already installed, don't install automatically
     try {
-      if (this.webContainer && this.packageManager) {
-        const babelAvailable = await this.isBabelInstalled();
-        if (babelAvailable) {
-          return await this.transformWithBabel(code, babelConfig);
-        } else {
-          console.log('ℹ️ @babel/standalone not installed. Install it manually if you need advanced TypeScript transformations.');
-        }
-      }
+      const result = babel.transform(code, options);
+      return result.code || code;
     } catch (error) {
-      console.warn('⚠️ Error en transformación TypeScript con Babel:', error);
+      console.warn('⚠️ Error en transformación TypeScript, usando transformación simple:', error);
+      return this.simpleTypeScriptTransform(code);
     }
-
-    // Fallback to simple transformation
-    console.log('🔄 Usando transformación simple de TypeScript como fallback');
-    return this.simpleTypeScriptTransform(code);
   }
 
   /**
@@ -285,22 +301,25 @@ try {
   /**
    * Transform code based on language detection
    */
-  public async transformCode(code: string, language: 'javascript' | 'typescript' = 'javascript'): Promise<string> {
+  public transformCode(code: string, language: 'javascript' | 'typescript' = 'javascript'): string {
     if (language === 'typescript' || this.isTypeScript(code)) {
-      return await this.transformTypeScript(code);
+      return this.transformTypeScript(code);
     }
     
-    return await this.transformJavaScript(code);
+    return this.transformJavaScript(code);
   }
 
   /**
    * Get available presets and plugins
    */
   public getAvailableOptions(): { presets: string[]; plugins: string[] } {
-    // Return basic options since we're using WebContainer-based Babel
+    if (!this.isInitialized || !babel) {
+      return { presets: [], plugins: [] };
+    }
+
     return {
-      presets: ['env', 'typescript', 'react'],
-      plugins: ['transform-react-jsx', 'transform-object-rest-spread', 'transform-async-to-generator']
+      presets: babel.availablePresets || [],
+      plugins: babel.availablePlugins || []
     };
   }
 

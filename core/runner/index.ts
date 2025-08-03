@@ -14,7 +14,6 @@ export { WebContainerManager } from './WebContainerManager.js';
 export { FileSystemManager } from './FileSystemManager.js';
 export { ProcessManager } from './ProcessManager.js';
 export { BabelTransformer } from './BabelTransformer.js';
-export { PackageManager } from './PackageManager.js';
 
 // Types
 export type {
@@ -33,23 +32,9 @@ export type {
   SupportedLanguage,
   LanguageConfig,
   SingletonState,
+  BabelConfig,
   SpawnOptions
 } from './types.js';
-
-// BabelTransformer types
-export type { BabelConfig } from './BabelTransformer.js';
-
-// PackageManager types
-export type {
-  PackageInfo,
-  PackageInstallOptions,
-  PackageDetectionResult,
-  DetectedImport,
-  DetectedRequire,
-  PackageSuggestion,
-  PackageManagerConfig,
-  InstallProgress
-} from './PackageManager.js';
 
 // Re-export WebContainer types from @webcontainer/api
 export type { WebContainer } from '@webcontainer/api';
