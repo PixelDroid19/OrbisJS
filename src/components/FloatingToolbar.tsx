@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, memo, useCallback } from 'react';
 import type { LanguageType } from '../../core/editor';
 import { useKeyboardShortcuts, type KeyboardShortcut } from '../hooks/useKeyboardShortcuts';
 import { useContextMenu } from '../hooks/useContextMenu';
@@ -15,6 +15,36 @@ export interface ToolbarContext {
   cursorPosition?: { line: number; column: number };
   editorFocused?: boolean;
   panelWidth?: number;
+}
+
+export interface RunnerStatus {
+  isInitializing: boolean;
+  isReady: boolean;
+  hasError: boolean;
+}
+
+export interface AutoExecutionStatus {
+  status: 'idle' | 'running' | 'completed' | 'error';
+}
+
+export interface AutoExecutionProgress {
+  percentage: number;
+}
+
+export interface ActionPanelData {
+  onRunCode: () => void;
+  onStopCode: () => void;
+  onSaveFile: () => void;
+  onToggleAutoExecution: () => void;
+  onOpenAIAssistant: () => void;
+  runnerStatus: RunnerStatus;
+  isRunning: boolean;
+  isSaved: boolean;
+  currentFileName: string;
+  autoExecutionEnabled: boolean;
+  autoExecutionStatus: string; // Simplificado a string
+  autoExecutionProgress: number; // Simplificado a number
+  autoExecutionManager: any;
 }
 
 export interface ToolbarItem {
@@ -43,6 +73,7 @@ export interface FloatingToolbarProps {
   keyboardShortcutsEnabled?: boolean;
   showContextMenuOnRightClick?: boolean;
   showHeaderControls?: boolean;
+  actionPanelData?: ActionPanelData;
 }
 
 const DEFAULT_TOOLS: Record<LanguageType, ToolbarItem[]> = {
@@ -213,10 +244,12 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   className = '',
   keyboardShortcutsEnabled = true,
   showContextMenuOnRightClick = true,
-  showHeaderControls = false
+  showHeaderControls = false,
+  actionPanelData
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showCustomization, setShowCustomization] = useState(false);
+  const [showActionPanel, setShowActionPanel] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const { contextMenu, showContextMenu, hideContextMenu, createToolbarContextMenu } = useContextMenu();
 
@@ -255,6 +288,174 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   ];
 
   useKeyboardShortcuts(shortcuts);
+
+  // Función para alternar el panel de acciones
+  const handleToggleActionPanel = useCallback(() => {
+    setShowActionPanel(prev => !prev);
+  }, []);
+
+  // Componente del panel desplegable con acciones (memoizado para evitar re-renders)
+  const ActionPanel = memo(() => {
+    if (!actionPanelData) return null;
+
+    const {
+      onRunCode,
+      onStopCode,
+      onSaveFile,
+      onToggleAutoExecution,
+      onOpenAIAssistant,
+      runnerStatus,
+      isRunning,
+      isSaved,
+      currentFileName,
+      autoExecutionEnabled,
+      autoExecutionStatus,
+      autoExecutionProgress,
+      autoExecutionManager
+    } = actionPanelData;
+
+    return (
+      <div className="floating-toolbar-action-panel">
+        {/* Grupo de Ejecución */}
+        <div className="action-panel-group">
+          <h4 className="action-panel-group-title">Ejecución</h4>
+          <div className="action-panel-actions">
+            <button
+              className="action-panel-btn action-panel-btn--primary"
+              onClick={onRunCode}
+              disabled={isRunning || !runnerStatus.isReady || runnerStatus.isInitializing}
+              title={runnerStatus.isInitializing ? 'Inicializando...' : 
+                     !runnerStatus.isReady ? 'No listo' :
+                     isRunning ? 'Ejecutando...' : 'Ejecutar código'}
+            >
+              <span className="action-panel-btn-icon">▶</span>
+              <span className="action-panel-btn-text">
+                {runnerStatus.isInitializing ? 'Inicializando...' : 
+                 !runnerStatus.isReady ? 'No listo' :
+                 isRunning ? 'Ejecutando...' : 'Ejecutar'}
+              </span>
+            </button>
+            
+            <button
+              className="action-panel-btn action-panel-btn--secondary"
+              onClick={onStopCode}
+              disabled={!isRunning}
+              title="Detener ejecución"
+            >
+              <span className="action-panel-btn-icon">⏹</span>
+              <span className="action-panel-btn-text">Parar</span>
+            </button>
+            
+            <button
+              className={`action-panel-btn ${autoExecutionEnabled ? 'action-panel-btn--enabled' : 'action-panel-btn--disabled'}`}
+              onClick={onToggleAutoExecution}
+              disabled={!runnerStatus.isReady || runnerStatus.isInitializing}
+              title={autoExecutionEnabled ? 'Desactivar auto-ejecución' : 'Activar auto-ejecución'}
+            >
+              <span className="action-panel-btn-icon">
+                {autoExecutionEnabled ? '⏸️' : '🔄'}
+              </span>
+              <span className="action-panel-btn-text">
+                Auto {autoExecutionEnabled ? 'ON' : 'OFF'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Grupo de Archivo */}
+        <div className="action-panel-group">
+          <h4 className="action-panel-group-title">Archivo</h4>
+          <div className="action-panel-actions">
+            <button
+              className="action-panel-btn action-panel-btn--secondary"
+              onClick={onSaveFile}
+              title="Guardar archivo"
+            >
+              <span className="action-panel-btn-icon">💾</span>
+              <span className="action-panel-btn-text">
+                {isSaved ? 'Guardado' : 'Guardar'}
+              </span>
+            </button>
+            
+            <div className="action-panel-info">
+              <span className="action-panel-info-label">Archivo:</span>
+              <span className="action-panel-info-value">{currentFileName}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Grupo de Estado */}
+        <div className="action-panel-group">
+          <h4 className="action-panel-group-title">Estado</h4>
+          <div className="action-panel-status">
+            {/* Estado del Runner */}
+            <div className="action-panel-status-item">
+              <span className={`action-panel-status-icon ${
+                runnerStatus.isInitializing ? 'initializing' : 
+                runnerStatus.hasError ? 'error' :
+                !runnerStatus.isReady ? 'warning' :
+                'ready'
+              }`}>
+                {runnerStatus.isInitializing ? '🔄' : 
+                 runnerStatus.hasError ? '❌' :
+                 !runnerStatus.isReady ? '⚠️' :
+                 '✅'}
+              </span>
+              <span className="action-panel-status-text">
+                {runnerStatus.isInitializing ? 'Inicializando' : 
+                 runnerStatus.hasError ? 'Error' :
+                 !runnerStatus.isReady ? 'No listo' :
+                 'Listo'}
+              </span>
+            </div>
+
+            {/* Estado LSP */}
+            <div className="action-panel-status-item">
+              <span className="action-panel-status-icon ready">🟢</span>
+              <span className="action-panel-status-text">LSP</span>
+            </div>
+
+            {/* Estado de Auto-ejecución */}
+            {runnerStatus.isReady && autoExecutionManager && (
+              <div className="action-panel-status-item">
+                <span className={`action-panel-status-icon ${
+                  autoExecutionStatus === 'running' ? 'initializing' :
+                  autoExecutionStatus === 'error' ? 'error' :
+                  autoExecutionStatus === 'completed' ? 'ready' :
+                  'warning'
+                }`}>
+                  {autoExecutionStatus === 'running' ? '🔄' :
+                   autoExecutionStatus === 'error' ? '❌' :
+                   autoExecutionStatus === 'completed' ? '✅' :
+                   '⏸️'}
+                </span>
+                <span className="action-panel-status-text">
+                  Auto-ejecución {autoExecutionEnabled ? 'ON' : 'OFF'}
+                  {autoExecutionStatus === 'running' && autoExecutionProgress > 0 && 
+                    ` (${autoExecutionProgress}%)`}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Grupo de Herramientas */}
+        <div className="action-panel-group">
+          <h4 className="action-panel-group-title">Herramientas</h4>
+          <div className="action-panel-actions">
+            <button
+              className="action-panel-btn action-panel-btn--ai"
+              onClick={onOpenAIAssistant}
+              title="Abrir asistente AI"
+            >
+              <span className="action-panel-btn-icon">🤖</span>
+              <span className="action-panel-btn-text">AI Assistant</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  });
 
   if (!visible) {
     return (
@@ -360,7 +561,27 @@ export const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
               </span>
             </button>
           ))}
+          
+          {/* Botón para mostrar/ocultar panel de acciones */}
+          {actionPanelData && (
+            <button
+              className={`floating-toolbar-global__item floating-toolbar-global__item--action-toggle ${showActionPanel ? 'floating-toolbar-global__item--active' : ''}`}
+              onClick={handleToggleActionPanel}
+              title="Mostrar/ocultar panel de acciones"
+              aria-label="Toggle action panel"
+              aria-pressed={showActionPanel}
+            >
+              <span className="floating-toolbar-global__icon" aria-hidden="true">
+                {showActionPanel ? '📋' : '⚙️'}
+              </span>
+            </button>
+          )}
         </div>
+        
+        {/* Panel desplegable de acciones */}
+        {showActionPanel && actionPanelData && (
+          <ActionPanel />
+        )}
       </div>
       
       <ContextMenu

@@ -1,21 +1,66 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import { EditorComponentRef, LanguageType } from '../core/editor';
-import type { SupportedLanguage } from '../core/runner/index.js';
 import { useTabs } from './hooks/useTabs';
 import { useWebContainer } from './hooks/useWebContainer';
+import { useAutoExecution } from './hooks/useAutoExecution';
+import { useExecutionService } from './hooks/useExecutionService';
+import { generateFileNameFromEditorLanguage } from './utils/FileUtils.js';
 import { TabBar } from './components/TabBar';
 import SplitView from './components/SplitView';
 import EditorPanel from './components/EditorPanel';
 import ResultsPanel from './components/ResultsPanel';
 import FloatingToolbar, { ToolbarContext } from './components/FloatingToolbar';
+import AutoExecutionPanel from './components/AutoExecutionPanel';
+import AutoExecutionSettings from './components/AutoExecutionSettings';
+import ExecutionStatusIndicator from './components/ExecutionStatusIndicator';
 import { StagewiseToolbar } from '@stagewise/toolbar-react';
 import ReactPlugin from '@stagewise-plugins/react';
 import './App.css';
 import './editor-fixes.css';
 
+// Testing auto-execution debug logs - change 4 - testing result display
+console.log('Auto-execution test - this should appear in results panel');
+
 function App() {
   const { tabs, activeTab, createTab, closeTab, switchTab, updateTab, renameTab } = useTabs();
   const { runner, isInitializing, initError, retryInitialization, hardReset } = useWebContainer();
+  const {
+    autoExecutionManager,
+    isEnabled: autoExecutionEnabled,
+    status: autoExecutionStatus,
+    progress: autoExecutionProgress,
+    toggle: toggleAutoExecution,
+    executeNow: executeAutoNow,
+    handleFileChange
+  } = useAutoExecution(runner, {
+    enabled: true,
+    debounceDelay: 1000,
+    strategy: { type: 'debounced', delay: 1000, priority: 'speed' }
+  }, {
+    onExecutionStart: () => {
+      console.log('🚀 Auto-execution started');
+      setIsRunning(true);
+      setError(''); // Clear previous errors
+    },
+    onExecutionResult: (result) => {
+      console.log('📊 Auto-execution result:', result);
+      if (result.success) {
+        setOutput(result.output || 'Code executed successfully via auto-execution');
+        setError('');
+      } else {
+        setError(result.error || 'Error during auto-execution');
+        setOutput('');
+      }
+    },
+    onExecutionEnd: () => {
+      console.log('✅ Auto-execution ended');
+      setIsRunning(false);
+    }
+  });
+
+  // Servicio centralizado de ejecución
+  const { executeCode, isExecuting, isReady: executionServiceReady } = useExecutionService(runner, autoExecutionManager);
+  
   const [isRunning, setIsRunning] = useState(false);
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
@@ -24,13 +69,14 @@ function App() {
   const [editorFocused, setEditorFocused] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
-  const [panelWidth, setPanelWidth] = useState(0);
+  const [panelWidth] = useState(0);
+  const [showAutoExecutionPanel, setShowAutoExecutionPanel] = useState(false);
+  const [showAutoExecutionSettings, setShowAutoExecutionSettings] = useState(false);
 
   const editorRef = useRef<EditorComponentRef>(null);
   
   // Current tab state
   const currentLanguage = activeTab?.language || 'javascript';
-  const currentContent = activeTab?.content || '';
 
   const handleLanguageChange = (newLanguage: LanguageType) => {
     if (activeTab) {
@@ -45,6 +91,26 @@ function App() {
         content: newContent, 
         modified: isModified 
       });
+      
+      console.log('📝 Content changed for tab:', activeTab.name, 'Auto-execution enabled:', autoExecutionEnabled);
+      console.log('📊 Auto-execution status:', autoExecutionStatus);
+      console.log('🔧 AutoExecutionManager available:', !!autoExecutionManager);
+      
+      // Trigger auto-execution if enabled
+      if (autoExecutionEnabled && activeTab.name) {
+        // Usar utilidades centralizadas para generar el nombre del archivo
+        const filename = generateFileNameFromEditorLanguage(activeTab.name, activeTab.language);
+        console.log('🚀 Triggering auto-execution for:', filename);
+        console.log('📄 Content length:', newContent.length);
+        handleFileChange(filename, newContent, 'modified');
+      } else {
+        console.log('⏸️ Auto-execution not triggered:', { 
+          enabled: autoExecutionEnabled, 
+          hasName: !!activeTab.name,
+          tabName: activeTab.name,
+          managerAvailable: !!autoExecutionManager
+        });
+      }
     }
   };
 
@@ -78,6 +144,120 @@ function App() {
     // TODO: Persist split ratio to localStorage
   };
 
+  // Funciones memoizadas para las acciones del panel
+  const handleStopCode = useCallback(() => {
+    // TODO: Implementar función para detener ejecución
+    console.log('Stop code execution');
+  }, []);
+
+  const handleSaveFile = useCallback(() => {
+    // TODO: Implementar función para guardar archivo
+    console.log('Save file');
+  }, []);
+
+  const handleOpenAIAssistant = useCallback(() => {
+    // TODO: Implementar función para abrir asistente AI
+    console.log('Open AI Assistant');
+  }, []);
+
+  const handleClearError = () => {
+    setError('');
+  };
+
+  const handleRunCode = useCallback(async () => {
+    const currentContent = editorRef.current?.getContent();
+    if (!currentContent || !activeTab) return;
+    
+    // Verificaciones básicas usando el servicio centralizado
+    if (!executionServiceReady) {
+      if (isInitializing) {
+        setError('⏳ Runner se está inicializando. Por favor, espera un momento...');
+      } else if (!runner) {
+        setError('❌ Runner no está disponible. Por favor, espera a que se complete la inicialización o usa "Reintentar".');
+      } else {
+        setError('⚠️ Servicio de ejecución no está listo. Intentando reinicializar...');
+        try {
+          await retryInitialization();
+          return;
+        } catch (err) {
+          setError('❌ Error al reinicializar el Runner: ' + (err instanceof Error ? err.message : String(err)));
+          return;
+        }
+      }
+      return;
+    }
+
+    setIsRunning(true);
+    setOutput('');
+    setError('');
+
+    try {
+      // Usar el servicio centralizado que maneja detección de lenguaje y ejecución
+      const result = await executeCode(currentContent, activeTab.name, currentLanguage, {
+        useAutoExecution: autoExecutionEnabled && !!executeAutoNow
+      });
+      
+      if (result.success) {
+        setOutput(result.output || 'Code executed successfully');
+        console.log('🔍 Lenguaje detectado:', result.detectedLanguage);
+        if (result.detectedFramework) {
+          console.log('🎯 Framework detectado:', result.detectedFramework);
+        }
+      } else {
+        setError(result.error || 'Error durante la ejecución');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(errorMessage || 'Error durante la ejecución del código');
+    } finally {
+      setIsRunning(false);
+    }
+  }, [activeTab, executionServiceReady, isInitializing, runner, retryInitialization, currentLanguage, executeCode, autoExecutionEnabled, executeAutoNow]);
+
+  // Memoizar el estado del runner para evitar re-renders
+  const runnerStatus = useMemo(() => ({
+    isInitializing,
+    isReady: runner ? runner.isReady() : false,
+    hasError: !!initError
+  }), [isInitializing, runner, initError]);
+
+  // Memoizar el nombre del archivo actual
+  const currentFileName = useMemo(() => 
+    activeTab ? generateFileNameFromEditorLanguage(activeTab.name, currentLanguage) : 'No file',
+    [activeTab, currentLanguage]
+  );
+
+  // Actions para el FloatingToolbar (memoizado de forma estable para evitar re-renders)
+  const actionPanelData = useMemo(() => ({
+    onRunCode: handleRunCode,
+    onStopCode: handleStopCode,
+    onSaveFile: handleSaveFile,
+    onToggleAutoExecution: toggleAutoExecution,
+    onOpenAIAssistant: handleOpenAIAssistant,
+    runnerStatus,
+    isRunning,
+    isSaved: false, // TODO: Implementar lógica de guardado
+    currentFileName,
+    autoExecutionEnabled,
+    // Solo incluir autoExecutionStatus y autoExecutionProgress cuando realmente cambien de estado significativo
+    autoExecutionStatus: autoExecutionStatus?.status || 'idle',
+    autoExecutionProgress: autoExecutionProgress?.percentage || 0,
+    autoExecutionManager
+  }), [
+    handleRunCode,
+    handleStopCode,
+    handleSaveFile,
+    toggleAutoExecution,
+    handleOpenAIAssistant,
+    runnerStatus,
+    isRunning,
+    currentFileName,
+    autoExecutionEnabled,
+    autoExecutionStatus?.status, // Solo el status, no todo el objeto
+    Math.floor((autoExecutionProgress?.percentage || 0) / 10) * 10, // Redondear a decenas para evitar updates frecuentes
+    autoExecutionManager
+  ]);
+
   // Global toolbar context and tools
   const toolbarContext: ToolbarContext = {
     fileType: activeTab?.language || 'javascript',
@@ -105,6 +285,60 @@ function App() {
       visible: true,
       disabled: isRunning || !runner || isInitializing || (runner && !runner.isReady()),
       tooltip: 'Execute the current code'
+    });
+    
+    // Add auto-execution toggle
+    tools.push({
+      id: 'auto-execution',
+      icon: autoExecutionEnabled ? '⏸️' : '🔄',
+      label: autoExecutionEnabled ? 'Disable Auto-execution' : 'Enable Auto-execution',
+      action: () => {
+        console.log('🔄 Auto-execution toggle clicked, current state:', autoExecutionEnabled);
+        toggleAutoExecution();
+      },
+      visible: true,
+      disabled: !runner || isInitializing || (runner && !runner.isReady()),
+      tooltip: autoExecutionEnabled ? 'Disable automatic code execution' : 'Enable automatic code execution'
+    });
+    
+    // Add auto-execution panel toggle
+    tools.push({
+      id: 'auto-execution-panel',
+      icon: '⚙️',
+      label: 'Auto-execution Panel',
+      action: () => setShowAutoExecutionPanel(!showAutoExecutionPanel),
+      visible: true,
+      disabled: false,
+      tooltip: 'Show/hide auto-execution panel'
+    });
+
+    // Add debug auto-execution button (temporary)
+    tools.push({
+      id: 'debug-auto-execution',
+      icon: '🐛',
+      label: 'Debug Auto-execution',
+      action: async () => {
+        console.log('🐛 Debug auto-execution triggered');
+        console.log('AutoExecutionManager:', autoExecutionManager);
+        console.log('Is enabled:', autoExecutionEnabled);
+        console.log('Status:', autoExecutionStatus);
+        console.log('Active tab:', activeTab);
+        
+        if (activeTab && autoExecutionManager) {
+          const filename = generateFileNameFromEditorLanguage(activeTab.name, activeTab.language);
+          console.log('Triggering manual execution for:', filename);
+          
+          try {
+            const result = await executeAutoNow(filename, activeTab.content);
+            console.log('✅ Debug execution completed:', result);
+          } catch (error) {
+            console.error('❌ Debug execution failed:', error);
+          }
+        }
+      },
+      visible: true,
+      disabled: false,
+      tooltip: 'Debug auto-execution functionality'
     });
     
     // Add format tool
@@ -193,86 +427,7 @@ function App() {
     });
     
     return tools;
-  }, [activeTab, isRunning, runner, isInitializing]);
-
-  const handleClearError = () => {
-    setError('');
-  };
-
-  const handleRunCode = async () => {
-    const currentContent = editorRef.current?.getContent();
-    if (!currentContent || !activeTab) return;
-    
-    // Verificación mejorada del estado del runner
-    if (!runner) {
-      setError('❌ Runner no está disponible. Por favor, espera a que se complete la inicialización o usa "Reintentar".');
-      return;
-    }
-
-    if (isInitializing) {
-      setError('⏳ Runner se está inicializando. Por favor, espera un momento...');
-      return;
-    }
-
-    // Verificación adicional del estado interno del runner
-    if (!runner.isReady()) {
-      setError('⚠️ Runner no está listo. Intentando reinicializar...');
-      try {
-        await retryInitialization();
-        return;
-      } catch (err) {
-        setError('❌ Error al reinicializar el Runner: ' + (err instanceof Error ? err.message : String(err)));
-        return;
-      }
-    }
-
-    setIsRunning(true);
-    setOutput('');
-    setError('');
-
-    try {
-      const languageMap: Record<LanguageType, SupportedLanguage> = {
-        'javascript': 'javascript',
-        'typescript': 'typescript',
-        'json': 'javascript',
-        'css': 'javascript',
-        'html': 'javascript'
-      };
-      
-      const runnerLanguage = languageMap[currentLanguage] || 'javascript';
-      const filename = `${activeTab.name}.${currentLanguage === 'typescript' ? 'ts' : 'js'}`;
-      
-      const result = await runner.runCode(currentContent, runnerLanguage, { filename });
-      
-      if (result.success) {
-        setOutput(result.output);
-      } else {
-        // Mejorar el mensaje de error
-        const errorMsg = result.error || 'Error durante la ejecución';
-        setError(errorMsg);
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      
-      // Manejo específico de diferentes tipos de errores
-      if (errorMessage.includes('Runner not initialized')) {
-        setError('El sistema de ejecución no está inicializado. Usa el botón "Reintentar".');
-      } else if (errorMessage.includes('timeout')) {
-        setError('El código tardó demasiado en ejecutarse. Verifica si hay bucles infinitos.');
-      } else if (errorMessage.includes('WebContainer')) {
-        setError('Error en el entorno de ejecución. Intenta reiniciar el sistema.');
-      } else {
-        // Limpiar el mensaje de error de información técnica innecesaria
-        const cleanedError = errorMessage
-          .replace(/^Error:\s*/i, '')
-          .replace(/^Execution failed\s*/i, '')
-          .trim();
-        setError(cleanedError || 'Error durante la ejecución del código');
-      }
-    } finally {
-      setIsRunning(false);
-    }
-  };
+  }, [activeTab, isRunning, runner, isInitializing, autoExecutionEnabled, handleRunCode, toggleAutoExecution, showAutoExecutionPanel, autoExecutionManager, autoExecutionStatus, executeAutoNow]);
 
   return (
     <div className="app">
@@ -331,37 +486,18 @@ function App() {
       
       <footer className="app-footer">
         <div className="footer-left">
-          <button 
-            className="run-btn" 
-            onClick={handleRunCode}
-            disabled={isRunning || !runner || isInitializing || (runner && !runner.isReady())}
-          >
-            <span className="btn-icon">▶</span>
-            <span className="btn-text">
-              {isInitializing ? 'Inicializando...' : 
-               !runner ? 'No disponible' :
-               runner && !runner.isReady() ? 'No listo' :
-               isRunning ? 'Ejecutando...' : 
-               'Ejecutar'}
+          <div className="footer-info">
+            <span className="footer-info-text">
+              Usa el toolbar flotante (⚙️) para acceder a todas las acciones
             </span>
-          </button>
-          
-          <button className="stop-btn" disabled={!isRunning}>
-            <span className="btn-icon">⏹</span>
-          </button>
-          
-          <button className="save-btn">
-            <span className="btn-icon">💾</span>
-            <span className="btn-text">Sin guardar</span>
-          </button>
-          
-          <div className="language-indicator">
-            <span className="lang-icon">🟢</span>
-            <span>LSP</span>
           </div>
-          
-          {/* Indicador de estado del Runner */}
-          <div className="runner-status">
+        </div>
+        
+        <div className="footer-right">
+          <span className="file-name">
+            {activeTab ? generateFileNameFromEditorLanguage(activeTab.name, currentLanguage) : 'No file'}
+          </span>
+          <div className="footer-status-compact">
             <span className={`status-icon ${
               isInitializing ? 'initializing' : 
               !runner ? 'error' :
@@ -373,22 +509,7 @@ function App() {
                runner && !runner.isReady() ? '⚠️' :
                '✅'}
             </span>
-            <span className="status-text">
-              {isInitializing ? 'Inicializando' : 
-               !runner ? 'Error' :
-               runner && !runner.isReady() ? 'No listo' :
-               'Listo'}
-            </span>
           </div>
-        </div>
-        
-        <div className="footer-right">
-          <span className="file-name">
-            {activeTab ? `${activeTab.name}.${currentLanguage === 'typescript' ? 'ts' : 'js'}` : 'No file'}
-          </span>
-          <button className="ai-assistant-btn">
-            <span className="ai-icon">🤖</span>
-          </button>
         </div>
       </footer>
       
@@ -402,8 +523,50 @@ function App() {
         onLanguageChange={handleLanguageChange}
         showHeaderControls={true}
         className="app-floating-toolbar"
+        actionPanelData={actionPanelData}
       />
       
+      {/* Auto-execution Panel */}
+      {showAutoExecutionPanel && (
+        <div className="auto-execution-overlay">
+          <div className="auto-execution-overlay-backdrop" onClick={() => setShowAutoExecutionPanel(false)} />
+          <div className="auto-execution-overlay-content">
+            <AutoExecutionPanel
+              autoExecutionManager={autoExecutionManager}
+              className="app-auto-execution-panel"
+            />
+            <div className="auto-execution-overlay-actions">
+              <button
+                className="overlay-btn overlay-btn--secondary"
+                onClick={() => setShowAutoExecutionSettings(true)}
+              >
+                Settings
+              </button>
+              <button
+                className="overlay-btn overlay-btn--primary"
+                onClick={() => setShowAutoExecutionPanel(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Auto-execution Settings */}
+      {showAutoExecutionSettings && (
+        <div className="settings-overlay">
+          <div className="settings-overlay-backdrop" onClick={() => setShowAutoExecutionSettings(false)} />
+          <div className="settings-overlay-content">
+            <AutoExecutionSettings
+              autoExecutionManager={autoExecutionManager}
+              onClose={() => setShowAutoExecutionSettings(false)}
+              className="app-auto-execution-settings"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Stagewise Toolbar - Solo en modo desarrollo */}
       <StagewiseToolbar
         config={{
